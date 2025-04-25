@@ -1,8 +1,6 @@
-# Welcome to your CDK TypeScript project
+# Vinyl Shop Product Service
 
-This is a blank project for CDK development with TypeScript.
-
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+This project contains the infrastructure as a code of AWS components to generate Product Service to be used by shop-react-redux-cloudfront client project.
 
 ## Useful commands
 
