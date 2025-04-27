@@ -5,7 +5,7 @@ import * as path from 'path';
 import { Construct } from 'constructs';
 
 const corsPreflightOptions = {
-    allowOrigins: ['https://d2zhnbnr2iyna4.cloudfront.net/', 'http://localhost:3000'],
+    allowOrigins: ['https://d2h8spcnjjuho2.cloudfront.net/', 'http://localhost:3000'],
     allowMethods: ['GET', 'OPTIONS'],
 };
 
