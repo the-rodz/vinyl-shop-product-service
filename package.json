@@ -5,17 +5,20 @@
     "vinyl-shop-product-service": "bin/vinyl-shop-product-service.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "esbuild bin/**/*.ts lib/**/*.ts src/**/*.ts --outdir=dist --platform=node --format=cjs",
     "watch": "tsc -w",
     "test": "jest",
-    "cdk": "cdk"
+    "cdk": "cdk",
+    "cdk:bootstrap": "cdk bootstrap",
+    "cdk:deploy": "cdk deploy"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
     "@types/node": "22.7.9",
+    "aws-cdk": "2.1007.0",
+    "esbuild": "^0.25.3",
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",
-    "aws-cdk": "2.1007.0",
     "ts-node": "^10.9.2",
     "typescript": "~5.6.3"
   },
