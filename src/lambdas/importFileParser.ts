@@ -1,7 +1,7 @@
 import { S3Client, GetObjectCommand, CopyObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
-import * as c  from 'csv-parser';
-import csvParser = require('csv-parser');
+import csv from 'csv-parser';
 import { Readable } from 'stream';
 
 type ImportFileEvent = {
@@ -15,11 +15,17 @@ type Record = {
 };
 
 const s3Client = new S3Client();
+const sqsClient = new SQSClient();
 const uploadedFolder = process.env.FOLDER as string;
+const catalogItemsQueueUrl = process.env.CATALOG_ITEMS_QUEUE_URL as string;
 const parsedFolder = 'parsed';
 
 export async function main(event: ImportFileEvent) {
     console.log(`Processing uploaded file to S3 with event: ${JSON.stringify(event)}`);
+
+    if (!catalogItemsQueueUrl) {
+        throw new Error('CATALOG_ITEMS_QUEUE_URL environment variable is not set');
+    }
 
     try {
         for (const record of event.Records) {
@@ -33,8 +39,35 @@ export async function main(event: ImportFileEvent) {
                 }
 
                 if (key.toLowerCase().endsWith('.csv')) {
-                    await processCsv(bucket, key);
+                    const products = await processCsv(bucket, key);
                     console.log('File successfully processed.');
+
+                    const sendMessagesPromises = products.map(async (product, index) => {
+                        try {
+                            const messageBody = JSON.stringify({
+                                data: product,
+                                processedAt: new Date().toISOString(),
+                                productIndex: index,
+                            });
+
+                            const command = new SendMessageCommand({
+                                QueueUrl: catalogItemsQueueUrl,
+                                MessageBody: messageBody,
+                            });
+
+                            const result = await sqsClient.send(command);
+                            console.log(`Sent product ${index} to SQS. MessageId ${result.MessageId}`);
+
+                            return result;
+                        } catch (error) {
+                            console.error(`Failed to send product ${index} to SQS: ${error}`);
+                            throw error;
+                        }
+                    });
+
+                    await Promise.all(sendMessagesPromises);
+
+                    console.log(`Successfully processed and sent ${products.length} products to SQS`);
 
                     // move processed file to /parsed folder
                     await moveParsedFile(bucket, key);
@@ -67,9 +100,8 @@ async function processCsv(bucket: string, key: string): Promise<any[]> {
             const stream = response.Body as Readable;
 
             stream
-                .pipe(csvParser())
+                .pipe(csv())
                 .on('data', (data) => {
-                    console.log(`PRODUCT: ${JSON.stringify(data)}`);
                     results.push(data);
                 })
                 .on('error', (error) => {
