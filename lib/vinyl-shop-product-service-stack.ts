@@ -1,16 +1,12 @@
 import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
+import { ProductService } from './product-service';
 // import * as sqs from 'aws-cdk-lib/aws-sqs';
 
 export class VinylShopProductServiceStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // The code that defines your stack goes here
-
-    // example resource
-    // const queue = new sqs.Queue(this, 'VinylShopProductServiceQueue', {
-    //   visibilityTimeout: cdk.Duration.seconds(300)
-    // });
+    new ProductService(this, 'product-service');
   }
 }
