@@ -3,13 +3,18 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3n from 'aws-cdk-lib/aws-s3-notifications';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as path from 'path';
 import { Construct } from 'constructs';
 
 const folder = 'uploaded';
 
+interface ImportServiceStackProps extends cdk.StackProps {
+    catalogItemsQueue: sqs.Queue;
+}
+
 export class ImportServiceStack extends cdk.Stack {
-    constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+    constructor(scope: Construct, id: string, props?: ImportServiceStackProps) {
         super(scope, id, props);
 
         const bucket = new s3.Bucket(this, 'ImportBucket', {
@@ -118,8 +123,11 @@ export class ImportServiceStack extends cdk.Stack {
             code: lambda.Code.fromAsset(path.join(__dirname, '../dist/src/lambdas')),
             environment: {
                 FOLDER: folder,
+                CATALOG_ITEMS_QUEUE_URL: props?.catalogItemsQueue.queueUrl!,
             },
         });
+
+        props?.catalogItemsQueue.grantSendMessages(importFileParserFunction);
 
         bucket.grantReadWrite(importFileParserFunction);
 
