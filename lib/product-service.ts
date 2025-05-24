@@ -1,5 +1,6 @@
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as cdk from 'aws-cdk-lib';
 import * as path from 'path';
 import { Construct } from 'constructs';
@@ -16,6 +17,10 @@ function generateLambdaFunctionProps(handlerName: string): lambda.FunctionProps 
             timeout: cdk.Duration.seconds(5),
             handler: handlerName,
             code: lambda.Code.fromAsset(path.join(__dirname, '../dist/src/lambdas')),
+            environment: {
+                STOCK_TABLE_NAME: 'stock',
+                PRODUCT_TABLE_NAME: 'products',
+            },
         };
 }
 
@@ -40,6 +45,9 @@ export class ProductService extends Construct {
     constructor(scope: Construct, id: string) {
         super(scope, id);
 
+        const productsTable = dynamodb.Table.fromTableName(this, 'Products', 'products');
+        const stockTable = dynamodb.Table.fromTableName(this, 'Stock', 'stock');
+
         const getProductListFunction = new lambda.Function(
             this,
             'get-product-list-function', 
@@ -52,6 +60,20 @@ export class ProductService extends Construct {
             generateLambdaFunctionProps('getProductById.main'),
         );
 
+        const createProductFunction = new lambda.Function(
+            this,
+            'create-product',
+            generateLambdaFunctionProps('createProduct.main'),
+        );
+
+        productsTable.grantReadData(getProductListFunction);
+        productsTable.grantReadData(getProductByIdFunction);
+        productsTable.grantWriteData(createProductFunction);
+
+        stockTable.grantReadData(getProductListFunction);
+        stockTable.grantReadData(getProductByIdFunction);
+        stockTable.grantWriteData(createProductFunction);
+
         const api = new apigateway.RestApi(this, 'my-api', {
             restApiName: 'My API Gateway',
             description: 'This API serves the lambda functions.'
@@ -62,12 +84,12 @@ export class ProductService extends Construct {
             proxy: false,
         });
 
-        const productListResource = api.root.addResource('products');
+        const productsResource = api.root.addResource('products');
         
-        productListResource.addMethod('GET', getProductListIntegration, {
+        productsResource.addMethod('GET', getProductListIntegration, {
             methodResponses: [{ statusCode: '200' }]
         });
-        productListResource.addCorsPreflight(corsPreflightOptions);
+        productsResource.addCorsPreflight(corsPreflightOptions);
 
         const getProductByIdIntegration = new apigateway.LambdaIntegration(getProductByIdFunction, {
             requestTemplates: {
@@ -77,11 +99,44 @@ export class ProductService extends Construct {
             proxy: false,
         });
         
-        const productByIdResource = productListResource.addResource('{productId}');
+        const productByIdResource = productsResource.addResource('{productId}');
         
         productByIdResource.addMethod('GET', getProductByIdIntegration, {
             methodResponses: [{ statusCode: '200' }]
         });
         productByIdResource.addCorsPreflight(corsPreflightOptions);
+
+        const createProductIntegration = new apigateway.LambdaIntegration(createProductFunction, {
+            requestTemplates: {
+                "application/json": `{"body": $input.json('$')}`
+            },
+            integrationResponses:  [
+                {
+                    statusCode: '400',
+                    selectionPattern: 'ValidationError.*',
+                    responseTemplates: {
+                        'application/json': '$input.json("$")'
+                    },
+                },
+                {
+                    statusCode: '500',
+                    selectionPattern: 'UnexpectedError.*',
+                    responseTemplates: {
+                        'application/json': '$input.json("$")'
+                    },
+                },
+                {
+                    statusCode: '201',
+                    responseTemplates: {
+                        'application/json': '$input.json("$")',
+                    }
+                },
+            ],
+            proxy: false,
+        });
+
+        productsResource.addMethod('POST', createProductIntegration, {
+            methodResponses: [{ statusCode: '201' }, { statusCode: '400' }]
+        });
     }
 }
