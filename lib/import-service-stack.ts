@@ -49,6 +49,10 @@ export class ImportServiceStack extends cdk.Stack {
 
         bucket.grantWrite(importProductsFileFunction, `${folder}/*`);
 
+        const authorizerFunctionArn = cdk.Fn.importValue('basicAuthorizerFunctionArn');
+
+        const basicAuthorizer = lambda.Function.fromFunctionArn(this, 'imported-basic-authorizer', authorizerFunctionArn);
+
         const api = new apigateway.RestApi(this, 'import-api', {
             restApiName: 'Import Service',
             description: 'This service handles import products file by returned signed URL',
@@ -56,6 +60,10 @@ export class ImportServiceStack extends cdk.Stack {
                 allowOrigins: ['https://d2h8spcnjjuho2.cloudfront.net/', 'http://localhost:3000'],
                 allowMethods: ['GET', 'OPTIONS'],
             },
+        });
+
+        const authorizer = new apigateway.TokenAuthorizer(this, 'token-authorizer', {
+            handler: basicAuthorizer,
         });
 
         const importProductsFileIntegration = new apigateway.LambdaIntegration(importProductsFileFunction, {
@@ -113,6 +121,8 @@ export class ImportServiceStack extends cdk.Stack {
                 { statusCode: '400' },
                 { statusCode: '500' },
             ],
+            authorizer,
+            authorizationType: apigateway.AuthorizationType.CUSTOM,
         });
 
         const importFileParserFunction = new lambda.Function(this, 'import-file-parser-function', {
@@ -138,11 +148,5 @@ export class ImportServiceStack extends cdk.Stack {
                 prefix: `${folder}/`,
             }
         );
-
-        new cdk.CfnOutput(this, 'ApiEndpoint', {
-            value: api.url,
-            description: 'URL of the API Gateway',
-        })
-
     }
 }
