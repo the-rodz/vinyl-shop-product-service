@@ -57,8 +57,8 @@ export class ImportServiceStack extends cdk.Stack {
             restApiName: 'Import Service',
             description: 'This service handles import products file by returned signed URL',
             defaultCorsPreflightOptions: {
-                allowOrigins: ['https://d2h8spcnjjuho2.cloudfront.net/', 'http://localhost:3000'],
-                allowMethods: ['GET', 'OPTIONS'],
+                allowOrigins: ['*'],
+                allowMethods: ['*'],
             },
         });
 
